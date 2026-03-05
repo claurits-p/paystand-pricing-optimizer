@@ -26,7 +26,8 @@ ACH_AVG_TXN_SIZE = 1_700          # $1,700 average transaction size
 HOLD_DAYS_CC_DEFAULT = 2
 HOLD_DAYS_ACH_DEFAULT = 4
 HOLD_DAYS_BANK_DEFAULT = 6
-MONEY_MARKET_RATE = 0.05           # ~5% annualized for float income calc
+FLOAT_ANNUAL_RATE = 0.03           # 3% return on float balances
+SAAS_ANNUAL_ESCALATOR = 0.07       # 7% annual increase on standard ARR
 
 # ── Pricing Lever Bounds ──────────────────────────────────────
 LEVER_BOUNDS = {
@@ -61,7 +62,7 @@ WIN_PROB_DEFAULTS = {
 
 # ── Market Benchmarks (median competitive rates) ──────────────
 MARKET_BENCHMARKS = {
-    "cc_rate": 0.029,              # 2.9% typical competitive blended CC rate
+    "cc_rate": 0.032,              # 3.2% standard blended CC rate (benchmark)
     "ach_effective_rate": 0.003,   # 0.3% typical competitive ACH effective rate
     "saas_discount_pct": 0.25,    # typical discount given
     "impl_discount_pct": 0.25,    # typical impl fee reduction

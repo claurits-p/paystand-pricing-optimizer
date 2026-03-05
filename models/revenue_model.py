@@ -73,20 +73,39 @@ def _ach_revenue_for_volume(
     return volume * pricing.ach_pct_rate
 
 
+def _saas_arr_for_year(pricing: PricingScenario, year: int) -> float:
+    """SaaS ARR: discount applies Year 1 only, 7% escalator on base each year."""
+    base = pricing.saas_arr_list * (cfg.SAAS_ANNUAL_ESCALATOR + 1) ** (year - 1)
+    if year == 1:
+        return base * (1 - pricing.saas_arr_discount_pct)
+    return base
+
+
+def _cc_blended_rate_for_year(pricing: PricingScenario, year: int) -> float:
+    """CC rates revert to standard after Year 1."""
+    if year == 1:
+        base = pricing.cc_base_rate
+        amex = pricing.cc_amex_rate
+    else:
+        base = cfg.CC_STANDARD_BASE_RATE
+        amex = cfg.CC_STANDARD_AMEX_RATE
+    return (
+        cfg.CC_FIXED_COMPONENT
+        + base * cfg.CC_BASE_VOLUME_SHARE
+        + amex * cfg.CC_AMEX_VOLUME_SHARE
+    )
+
+
 def compute_yearly_revenue(
     vol: VolumeForecastYear,
     pricing: PricingScenario,
     costs: YearlyCosts,
 ) -> YearlyRevenue:
     """Compute revenue for a single year."""
-    saas_rev = pricing.effective_saas_arr
+    saas_rev = _saas_arr_for_year(pricing, vol.year)
     impl_rev = pricing.effective_impl_fee if vol.year == 1 else 0.0
 
-    blended_cc_rate = (
-        cfg.CC_FIXED_COMPONENT
-        + pricing.cc_base_rate * cfg.CC_BASE_VOLUME_SHARE
-        + pricing.cc_amex_rate * cfg.CC_AMEX_VOLUME_SHARE
-    )
+    blended_cc_rate = _cc_blended_rate_for_year(pricing, vol.year)
     cc_rev = vol.cc * blended_cc_rate
 
     ach_rev = _ach_revenue_for_volume(vol.ach, vol.ach_txn_count, pricing)
@@ -94,9 +113,13 @@ def compute_yearly_revenue(
         vol.bank_network, vol.bank_network_txn_count, pricing
     )
 
-    cc_float = (vol.cc / 365) * pricing.hold_days_cc * cfg.MONEY_MARKET_RATE / 365
-    ach_float = (vol.ach / 365) * pricing.hold_days_ach * cfg.MONEY_MARKET_RATE / 365
-    bank_float = (vol.bank_network / 365) * pricing.hold_days_bank * cfg.MONEY_MARKET_RATE / 365
+    cc_profitable_days = max(0, pricing.hold_days_cc - 1)
+    ach_profitable_days = max(0, pricing.hold_days_ach - 1)
+    bank_profitable_days = max(0, pricing.hold_days_bank - 1)
+
+    cc_float = (vol.cc / 365) * cc_profitable_days * cfg.FLOAT_ANNUAL_RATE
+    ach_float = (vol.ach / 365) * ach_profitable_days * cfg.FLOAT_ANNUAL_RATE
+    bank_float = (vol.bank_network / 365) * bank_profitable_days * cfg.FLOAT_ANNUAL_RATE
     float_income = cc_float + ach_float + bank_float
 
     total_rev = saas_rev + impl_rev + cc_rev + ach_rev + bank_rev + float_income
@@ -126,6 +149,7 @@ def compute_three_year_financials(
     results: dict[int, YearlyRevenue] = {}
     for year in [1, 2, 3]:
         vol = volumes[year]
-        costs = compute_yearly_costs(vol, pricing.effective_saas_arr)
+        saas_for_cost = _saas_arr_for_year(pricing, year)
+        costs = compute_yearly_costs(vol, saas_for_cost)
         results[year] = compute_yearly_revenue(vol, pricing, costs)
     return results
