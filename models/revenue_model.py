@@ -28,6 +28,7 @@ class PricingScenario:
     # Derived fields populated at deal level
     saas_arr_list: float = cfg.SAAS_ARR_DEFAULT
     impl_fee_list: float = cfg.SAAS_IMPL_FEE_DEFAULT
+    saas_discount_persists: bool = False
 
     @property
     def effective_saas_arr(self) -> float:
@@ -74,7 +75,10 @@ def _ach_revenue_for_volume(
 
 
 def _saas_arr_for_year(pricing: PricingScenario, year: int) -> float:
-    """SaaS ARR: discount applies Year 1 only, 7% escalator on base each year."""
+    """SaaS ARR: discount applies Year 1 only (or all years if persistent), 7% escalator."""
+    if pricing.saas_discount_persists:
+        discounted = pricing.saas_arr_list * (1 - pricing.saas_arr_discount_pct)
+        return discounted * (cfg.SAAS_ANNUAL_ESCALATOR + 1) ** (year - 1)
     base = pricing.saas_arr_list * (cfg.SAAS_ANNUAL_ESCALATOR + 1) ** (year - 1)
     if year == 1:
         return base * (1 - pricing.saas_arr_discount_pct)
@@ -109,9 +113,7 @@ def compute_yearly_revenue(
     cc_rev = vol.cc * blended_cc_rate
 
     ach_rev = _ach_revenue_for_volume(vol.ach, vol.ach_txn_count, pricing)
-    bank_rev = _ach_revenue_for_volume(
-        vol.bank_network, vol.bank_network_txn_count, pricing
-    )
+    bank_rev = 0.0
 
     cc_profitable_days = max(0, pricing.hold_days_cc - 1)
     ach_profitable_days = max(0, pricing.hold_days_ach - 1)

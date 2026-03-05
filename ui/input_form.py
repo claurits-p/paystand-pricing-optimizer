@@ -15,37 +15,35 @@ def render_deal_inputs() -> dict:
     col1, col2 = st.columns(2)
 
     with col1:
-        company_name = st.text_input("Company Name", value="Acme Corp")
+        company_name = st.text_input("Company Name", placeholder="Input Company Name Here")
         processing_tier_volume = st.number_input(
             "Processing Tier Total Volume ($/yr)",
             min_value=0.0,
-            value=5_000_000.0,
+            value=10_000_000.0,
             step=100_000.0,
             format="%.0f",
         )
         expected_cc_volume = st.number_input(
             "Expected CC Volume ($/yr)",
             min_value=0.0,
-            value=2_000_000.0,
+            value=4_000_000.0,
             step=100_000.0,
             format="%.0f",
         )
 
     with col2:
-        conv_fee_today = st.number_input(
-            "Convenience Fee Today ($, 0 if none)",
-            min_value=0.0,
-            value=0.0,
-            step=0.50,
-            format="%.2f",
-        )
-        conv_fee_with_paystand = st.number_input(
-            "Convenience Fee with Paystand ($, 0 if none)",
-            min_value=0.0,
-            value=3.50,
-            step=0.50,
-            format="%.2f",
-        )
+        conv_fee_today = st.selectbox(
+            "Convenience Fees Today?",
+            options=[("No", 0), ("Yes", 1)],
+            format_func=lambda x: x[0],
+            index=0,
+        )[1]
+        conv_fee_with_paystand = st.selectbox(
+            "Convenience Fees with Paystand?",
+            options=[("No", 0), ("Yes", 1)],
+            format_func=lambda x: x[0],
+            index=1,
+        )[1]
 
     st.subheader("SaaS Pricing")
     s1, s2 = st.columns(2)
@@ -98,11 +96,11 @@ def render_manual_scenario() -> dict | None:
         with c2:
             cc_rate = st.number_input(
                 "CC Base Rate %", min_value=1.99, max_value=2.39,
-                value=2.39, step=0.05, key="manual_cc",
+                value=1.99, step=0.05, key="manual_cc",
             ) / 100
             amex_rate = st.number_input(
                 "AMEX Rate %", min_value=2.50, max_value=4.0,
-                value=3.50, step=0.05, key="manual_amex",
+                value=3.25, step=0.05, key="manual_amex",
             ) / 100
         with c3:
             ach_mode = st.selectbox(
@@ -112,11 +110,11 @@ def render_manual_scenario() -> dict | None:
                     "capped": "Capped (% with $ cap per txn)",
                     "fixed_fee": "Fixed Fee ($ per txn)",
                 }.get(m, m),
-                index=0, key="manual_ach_mode",
+                index=2, key="manual_ach_mode",
             )
             ach_pct = 0.49
             ach_cap = 10.0
-            ach_fixed = 2.50
+            ach_fixed = 2.00
             if ach_mode in ("percentage", "capped"):
                 ach_pct = st.number_input(
                     "ACH % Rate", min_value=0.10, max_value=1.0,
@@ -130,17 +128,17 @@ def render_manual_scenario() -> dict | None:
             if ach_mode == "fixed_fee":
                 ach_fixed = st.number_input(
                     "ACH Fixed Fee ($)", min_value=0.50, max_value=10.0,
-                    value=2.50, step=0.25, key="manual_ach_fixed",
+                    value=2.00, step=0.25, key="manual_ach_fixed",
                 )
 
         st.markdown("**Hold Days by Payment Type**")
         h1, h2, h3 = st.columns(3)
         with h1:
-            hold_cc = st.slider("CC Hold Days", 1, 5, 2, key="manual_hold_cc")
+            hold_cc = st.slider("CC Hold Days", 1, 2, 2, key="manual_hold_cc")
         with h2:
-            hold_ach = st.slider("ACH Hold Days", 1, 7, 4, key="manual_hold_ach")
+            hold_bank = st.slider("Bank Hold Days", 1, 5, 2, key="manual_hold_bank")
         with h3:
-            hold_bank = st.slider("Bank Hold Days", 1, 10, 6, key="manual_hold_bank")
+            hold_ach = st.slider("ACH Hold Days", 1, 7, 1, key="manual_hold_ach")
 
         return {
             "saas_arr_discount_pct": saas_disc,
@@ -194,11 +192,11 @@ def render_model_config() -> dict:
     bm_hold_cc = st.sidebar.number_input(
         "Benchmark CC Hold Days", value=bm["hold_days_cc"], step=1, min_value=1,
     )
-    bm_hold_ach = st.sidebar.number_input(
-        "Benchmark ACH Hold Days", value=bm["hold_days_ach"], step=1, min_value=1,
-    )
     bm_hold_bank = st.sidebar.number_input(
         "Benchmark Bank Hold Days", value=bm["hold_days_bank"], step=1, min_value=1,
+    )
+    bm_hold_ach = st.sidebar.number_input(
+        "Benchmark ACH Hold Days", value=bm["hold_days_ach"], step=1, min_value=1,
     )
 
     return {

@@ -51,10 +51,18 @@ from ui.charts import render_comparison_chart, render_yearly_trend_chart
 
 
 def main():
-    st.title("Paystand Payment Processing Pricing Optimizer")
+    logo_col, title_col = st.columns([0.06, 0.94], gap="small")
+    with logo_col:
+        st.image("paystand_logo.png", width=55)
+    with title_col:
+        st.markdown(
+            '<h1 style="color: #1B2A4A; margin-top: -5px;">Paystand Payment Processing Pricing Optimizer</h1>',
+            unsafe_allow_html=True,
+        )
     st.markdown(
-        "Input deal parameters, then run optimization to see **Margin-optimized**, "
-        "**Revenue-optimized**, and **Best Strategy** scenarios with 3-year forecasts."
+        "Input deal parameters, then run optimization to see **MSRP**, "
+        "**Balanced**, **Aggressive**, and **SaaS Passive** pricing strategies "
+        "with 3-year forecasts."
     )
 
     model_cfg = render_model_config()
@@ -80,9 +88,9 @@ def main():
             v = volumes[year]
             with vol_cols[i]:
                 st.metric(f"Year {year} Total", f"${v.total:,.0f}")
-                st.caption(
-                    f"CC: ${v.cc:,.0f} · ACH: ${v.ach:,.0f} · "
-                    f"Bank: ${v.bank_network:,.0f}"
+                st.markdown(
+                    f"CC: \\${v.cc:,.0f} · ACH: \\${v.ach:,.0f} · "
+                    f"Bank: \\${v.bank_network:,.0f}"
                 )
 
         st.divider()
@@ -132,11 +140,14 @@ def main():
 
         st.divider()
 
+        render_scenario_card(results["msrp"])
+        st.divider()
+
         if manual_pricing_dict:
             render_manual_scenario_card(manual_yearly, manual_pricing, manual_wp)
             st.divider()
 
-        for key in ["margin", "revenue", "best_strategy"]:
+        for key in ["balanced", "aggressive", "saas_passive"]:
             render_scenario_card(results[key])
             st.divider()
 
@@ -146,13 +157,15 @@ def main():
         for label, data in all_scenarios.items():
             for year in [1, 2, 3]:
                 yr = data["yearly"][year]
+                margin_pct = yr.margin / yr.total_revenue if yr.total_revenue > 0 else 0
                 export_rows.append({
                     "Scenario": label,
                     "Year": year,
                     "Win Prob": data["win_prob"],
                     "Total Revenue": yr.total_revenue,
                     "Total Cost": yr.total_cost,
-                    "Margin": yr.margin,
+                    "Margin $": yr.margin,
+                    "Margin %": margin_pct,
                     "Take Rate": yr.take_rate,
                     "SaaS Rev": yr.saas_revenue,
                     "CC Rev": yr.cc_revenue,
