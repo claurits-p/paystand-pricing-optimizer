@@ -39,7 +39,7 @@ def _yearly_to_df(yearly: dict[int, YearlyRevenue]) -> pd.DataFrame:
         yr = yearly[y]
         margin_pct = yr.margin / yr.total_revenue if yr.total_revenue > 0 else 0
         rows.append({
-            "Year": y,
+            "Year": str(y),
             "SaaS Rev": yr.saas_revenue,
             "Impl Fee": yr.impl_fee_revenue,
             "CC Rev": yr.cc_revenue,
