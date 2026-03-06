@@ -115,13 +115,12 @@ def compute_yearly_revenue(
     ach_rev = _ach_revenue_for_volume(vol.ach, vol.ach_txn_count, pricing)
     bank_rev = 0.0
 
-    cc_profitable_days = max(0, pricing.hold_days_cc - 1)
-    ach_profitable_days = max(0, pricing.hold_days_ach - 1)
-    bank_profitable_days = max(0, pricing.hold_days_bank - 1)
+    daily_rate = cfg.FLOAT_ANNUAL_RATE / 365
+    cal = cfg.FLOAT_CALENDAR_FACTOR
 
-    cc_float = (vol.cc / 365) * cc_profitable_days * cfg.FLOAT_ANNUAL_RATE
-    ach_float = (vol.ach / 365) * ach_profitable_days * cfg.FLOAT_ANNUAL_RATE
-    bank_float = (vol.bank_network / 365) * bank_profitable_days * cfg.FLOAT_ANNUAL_RATE
+    cc_float = vol.cc * daily_rate * pricing.hold_days_cc * cal
+    ach_float = vol.ach * daily_rate * pricing.hold_days_ach * cal
+    bank_float = vol.bank_network * daily_rate * pricing.hold_days_bank * cal
     float_income = cc_float + ach_float + bank_float
 
     total_rev = saas_rev + impl_rev + cc_rev + ach_rev + bank_rev + float_income

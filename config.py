@@ -26,7 +26,8 @@ ACH_AVG_TXN_SIZE = 1_700          # $1,700 average transaction size
 HOLD_DAYS_CC_DEFAULT = 2
 HOLD_DAYS_ACH_DEFAULT = 6
 HOLD_DAYS_BANK_DEFAULT = 4
-FLOAT_ANNUAL_RATE = 0.03           # 3% return on float balances
+FLOAT_ANNUAL_RATE = 0.04           # 4% return on float balances
+FLOAT_CALENDAR_FACTOR = 7 / 5     # convert business hold days to calendar days
 SAAS_ANNUAL_ESCALATOR = 0.07       # 7% annual increase on standard ARR
 
 # ── Pricing Lever Bounds ──────────────────────────────────────
@@ -48,13 +49,13 @@ ACH_MODES = ["percentage", "capped", "fixed_fee"]
 
 # ── Win Probability Defaults ──────────────────────────────────
 WIN_PROB_DEFAULTS = {
-    "floor": 0.10,        # 10% min win rate even at worst pricing
-    "ceiling": 0.80,      # 80% max win rate even at best pricing
-    "steepness": 10.0,    # sigmoid steepness (sharp penalty for being above benchmark)
+    "floor": 0.05,        # 5% min win rate
+    "ceiling": 1.0,       # 100% max win rate
+    "steepness": 9.0,     # sigmoid steepness
     "weights": {
-        "cc_rate": 0.30,
+        "cc_rate": 0.35,
         "saas_discount": 0.50,
-        "ach_rate": 0.15,
+        "ach_rate": 0.20,
         "impl_discount": 0.05,
         "hold_time": 0.05,
     },
@@ -64,7 +65,7 @@ WIN_PROB_DEFAULTS = {
 MARKET_BENCHMARKS = {
     "cc_rate": 0.032,              # 3.2% standard blended CC rate (benchmark)
     "ach_effective_rate": 0.003,   # 0.3% typical competitive ACH effective rate
-    "saas_discount_pct": 0.25,    # typical discount given
+    "saas_discount_pct": 0.10,    # typical discount given
     "impl_discount_pct": 0.25,    # typical impl fee reduction
     "hold_days_cc": 2,            # typical CC hold
     "hold_days_ach": 6,           # typical ACH hold

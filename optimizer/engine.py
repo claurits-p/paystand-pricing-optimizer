@@ -1,10 +1,10 @@
 """
 Optimization engine.
 
-Three strategy-based scenarios with different constraint profiles:
-  1. Balanced:      SaaS-led strategy, CC near standard, maximize LTV * P(win)
-  2. Aggressive:    maximize win probability with a minimum margin floor
-  3. SaaS Passive:  deep persistent SaaS discount (50-70%), optimize processing
+Three objective-driven scenarios:
+  1. Margin % Optimized:   maximize pure margin % (no P(win))
+  2. Take Rate Optimized:  maximize pure take rate (no P(win))
+  3. LTV Optimized:        maximize P(win) * sum(margin * retention)
 """
 from __future__ import annotations
 from dataclasses import dataclass
@@ -35,6 +35,7 @@ class OptimizationResult:
 
 
 RETENTION_CURVE = {1: 1.0, 2: 0.90, 3: 0.82}
+WIN_PROB_FLOOR = 0.35  # minimum viable win probability for constrained objectives
 
 
 def _build_pricing_from_vector(
@@ -42,7 +43,6 @@ def _build_pricing_from_vector(
     ach_mode: str,
     saas_arr_list: float,
     impl_fee_list: float,
-    saas_discount_persists: bool = False,
 ) -> PricingScenario:
     return PricingScenario(
         saas_arr_discount_pct=float(x[0]),
@@ -58,89 +58,57 @@ def _build_pricing_from_vector(
         hold_days_bank=int(round(x[9])),
         saas_arr_list=saas_arr_list,
         impl_fee_list=impl_fee_list,
-        saas_discount_persists=saas_discount_persists,
     )
 
 
-def _get_bounds(strategy: str = "balanced") -> list[tuple[float, float]]:
-    """Bounds for the 10-element vector, constrained by strategy."""
+def _get_bounds() -> list[tuple[float, float]]:
+    """Full lever bounds — no strategy-specific constraints."""
     lb = cfg.LEVER_BOUNDS
-
-    if strategy == "aggressive":
-        return [
-            (0.30, lb["saas_arr_discount_pct"]["max"]),                   # saas discount: at least 30%
-            (0.0, lb["impl_fee_discount_pct"]["max"]),
-            (lb["cc_base_rate"]["min"], lb["cc_base_rate"]["max"]),
-            (lb["cc_amex_rate"]["min"], lb["cc_amex_rate"]["max"]),
-            (lb["ach_pct_rate"]["min"], lb["ach_pct_rate"]["max"]),
-            (lb["ach_cap"]["min"], lb["ach_cap"]["max"]),
-            (lb["ach_fixed_fee"]["min"], lb["ach_fixed_fee"]["max"]),
-            (lb["hold_days_cc"]["min"], lb["hold_days_cc"]["max"]),
-            (lb["hold_days_ach"]["min"], lb["hold_days_ach"]["max"]),
-            (lb["hold_days_bank"]["min"], lb["hold_days_bank"]["max"]),
-        ]
-    elif strategy == "saas_passive":
-        return [
-            (0.50, 0.70),                                                     # saas discount: 50-70%, persists all years
-            (lb["impl_fee_discount_pct"]["min"], lb["impl_fee_discount_pct"]["max"]),
-            (lb["cc_base_rate"]["min"], lb["cc_base_rate"]["max"]),
-            (lb["cc_amex_rate"]["min"], lb["cc_amex_rate"]["max"]),
-            (lb["ach_pct_rate"]["min"], lb["ach_pct_rate"]["max"]),
-            (lb["ach_cap"]["min"], lb["ach_cap"]["max"]),
-            (lb["ach_fixed_fee"]["min"], lb["ach_fixed_fee"]["max"]),
-            (lb["hold_days_cc"]["min"], lb["hold_days_cc"]["max"]),
-            (lb["hold_days_ach"]["min"], lb["hold_days_ach"]["max"]),
-            (lb["hold_days_bank"]["min"], lb["hold_days_bank"]["max"]),
-        ]
-    else:  # balanced: SaaS-led strategy, CC stays near standard
-        return [
-            (lb["saas_arr_discount_pct"]["min"], lb["saas_arr_discount_pct"]["max"]),
-            (lb["impl_fee_discount_pct"]["min"], lb["impl_fee_discount_pct"]["max"]),
-            (0.0219, 0.0239),                                                 # cc base: 2.19%-2.39% (near standard)
-            (0.0330, 0.035),                                                  # amex: 3.30%-3.50% (near standard)
-            (lb["ach_pct_rate"]["min"], lb["ach_pct_rate"]["max"]),
-            (lb["ach_cap"]["min"], lb["ach_cap"]["max"]),
-            (lb["ach_fixed_fee"]["min"], lb["ach_fixed_fee"]["max"]),
-            (lb["hold_days_cc"]["min"], lb["hold_days_cc"]["max"]),
-            (lb["hold_days_ach"]["min"], lb["hold_days_ach"]["max"]),
-            (lb["hold_days_bank"]["min"], lb["hold_days_bank"]["max"]),
-        ]
+    return [
+        (lb["saas_arr_discount_pct"]["min"], lb["saas_arr_discount_pct"]["max"]),
+        (lb["impl_fee_discount_pct"]["min"], lb["impl_fee_discount_pct"]["max"]),
+        (lb["cc_base_rate"]["min"], lb["cc_base_rate"]["max"]),
+        (lb["cc_amex_rate"]["min"], lb["cc_amex_rate"]["max"]),
+        (lb["ach_pct_rate"]["min"], lb["ach_pct_rate"]["max"]),
+        (lb["ach_cap"]["min"], lb["ach_cap"]["max"]),
+        (lb["ach_fixed_fee"]["min"], lb["ach_fixed_fee"]["max"]),
+        (lb["hold_days_cc"]["min"], lb["hold_days_cc"]["max"]),
+        (lb["hold_days_ach"]["min"], lb["hold_days_ach"]["max"]),
+        (lb["hold_days_bank"]["min"], lb["hold_days_bank"]["max"]),
+    ]
 
 
-def _objective_margin(
+# ── Objective Functions ───────────────────────────────────────────────
+
+def _objective_margin_pct(
     x, ach_mode, volumes, saas_arr_list, impl_fee_list, wp_params,
-    saas_discount_persists=False,
 ) -> float:
-    """Maximize 3-year margin * P(win)."""
-    pricing = _build_pricing_from_vector(x, ach_mode, saas_arr_list, impl_fee_list, saas_discount_persists)
+    """Maximize pure 3-year margin % — no win probability factor."""
+    pricing = _build_pricing_from_vector(x, ach_mode, saas_arr_list, impl_fee_list)
     yearly = compute_three_year_financials(volumes, pricing)
-    wp = win_probability(pricing, **wp_params)
-    total_margin = sum(yr.margin for yr in yearly.values())
-    return -(total_margin * wp)
-
-
-def _objective_win_prob(
-    x, ach_mode, volumes, saas_arr_list, impl_fee_list, wp_params,
-    saas_discount_persists=False,
-) -> float:
-    """Maximize win probability while keeping margin above a floor."""
-    pricing = _build_pricing_from_vector(x, ach_mode, saas_arr_list, impl_fee_list, saas_discount_persists)
-    yearly = compute_three_year_financials(volumes, pricing)
-    wp = win_probability(pricing, **wp_params)
     total_rev = sum(yr.total_revenue for yr in yearly.values())
     total_margin = sum(yr.margin for yr in yearly.values())
     margin_pct = total_margin / total_rev if total_rev > 0 else 0
-    if margin_pct < 0.35:
-        return 0.0
-    return -(wp * total_margin)
+    return -margin_pct
+
+
+def _objective_take_rate(
+    x, ach_mode, volumes, saas_arr_list, impl_fee_list, wp_params,
+) -> float:
+    """Maximize pure 3-year average take rate — no win probability factor."""
+    pricing = _build_pricing_from_vector(x, ach_mode, saas_arr_list, impl_fee_list)
+    yearly = compute_three_year_financials(volumes, pricing)
+    total_rev = sum(yr.total_revenue for yr in yearly.values())
+    total_vol = sum(yr.total_revenue / yr.take_rate for yr in yearly.values() if yr.take_rate > 0)
+    avg_take_rate = total_rev / total_vol if total_vol > 0 else 0
+    return -avg_take_rate
 
 
 def _objective_ltv(
     x, ach_mode, volumes, saas_arr_list, impl_fee_list, wp_params,
-    saas_discount_persists=False,
 ) -> float:
     """Maximize expected lifetime value: P(win) * sum(margin * retention)."""
-    pricing = _build_pricing_from_vector(x, ach_mode, saas_arr_list, impl_fee_list, saas_discount_persists)
+    pricing = _build_pricing_from_vector(x, ach_mode, saas_arr_list, impl_fee_list)
     yearly = compute_three_year_financials(volumes, pricing)
     wp = win_probability(pricing, **wp_params)
     elv = sum(
@@ -150,6 +118,8 @@ def _objective_ltv(
     return -(elv * wp)
 
 
+# ── Optimization Machinery ────────────────────────────────────────────
+
 def _run_single_optimization(
     objective_fn: Callable,
     ach_mode: str,
@@ -157,14 +127,12 @@ def _run_single_optimization(
     saas_arr_list: float,
     impl_fee_list: float,
     wp_params: dict,
-    strategy: str = "balanced",
-    saas_discount_persists: bool = False,
 ) -> tuple[float, np.ndarray]:
-    bounds = _get_bounds(strategy)
+    bounds = _get_bounds()
     result = differential_evolution(
         objective_fn,
         bounds=bounds,
-        args=(ach_mode, volumes, saas_arr_list, impl_fee_list, wp_params, saas_discount_persists),
+        args=(ach_mode, volumes, saas_arr_list, impl_fee_list, wp_params),
         seed=42,
         maxiter=400,
         tol=1e-8,
@@ -182,9 +150,7 @@ def optimize_scenario(
     saas_arr_list: float,
     impl_fee_list: float,
     wp_params: dict,
-    strategy: str = "balanced",
     explanation_fn: Callable | None = None,
-    saas_discount_persists: bool = False,
 ) -> OptimizationResult:
     best_obj = float("inf")
     best_x = None
@@ -194,8 +160,6 @@ def optimize_scenario(
         obj, x = _run_single_optimization(
             objective_fn, mode, volumes,
             saas_arr_list, impl_fee_list, wp_params,
-            strategy=strategy,
-            saas_discount_persists=saas_discount_persists,
         )
         if obj < best_obj:
             best_obj = obj
@@ -203,7 +167,7 @@ def optimize_scenario(
             best_mode = mode
 
     pricing = _build_pricing_from_vector(
-        best_x, best_mode, saas_arr_list, impl_fee_list, saas_discount_persists
+        best_x, best_mode, saas_arr_list, impl_fee_list
     )
     yearly = compute_three_year_financials(volumes, pricing)
     wp = win_probability(pricing, **wp_params)
@@ -222,13 +186,15 @@ def optimize_scenario(
     )
 
 
+# ── Pre-built Scenarios ──────────────────────────────────────────────
+
 def build_msrp_scenario(
     volumes: dict[int, VolumeForecastYear],
     saas_arr_list: float = cfg.SAAS_ARR_DEFAULT,
     impl_fee_list: float = cfg.SAAS_IMPL_FEE_DEFAULT,
     wp_params: dict | None = None,
 ) -> OptimizationResult:
-    """MSRP / sticker price scenario -- no discounts, standard everything."""
+    """Sticker price scenario — no discounts, standard everything."""
     pricing = PricingScenario(
         saas_arr_discount_pct=0.0,
         impl_fee_discount_pct=0.0,
@@ -248,7 +214,7 @@ def build_msrp_scenario(
     wp = win_probability(pricing, **(wp_params or {}))
 
     return OptimizationResult(
-        name="MSRP (Sticker Price)",
+        name="Pre Discount Pricing Today",
         pricing=pricing,
         win_prob=wp,
         yearly=yearly,
@@ -267,19 +233,14 @@ def _scenario_explanation(
     margin_pct = total_margin / total_rev * 100 if total_rev > 0 else 0
     renewal = _saas_arr_for_year(pricing, 2)
 
-    processing_rev = sum(
-        yr.cc_revenue + yr.ach_revenue + yr.bank_network_revenue
-        for yr in yearly.values()
+    total_vol = sum(
+        yr.total_revenue / yr.take_rate
+        for yr in yearly.values() if yr.take_rate > 0
     )
-    processing_pct = processing_rev / total_rev * 100 if total_rev > 0 else 0
+    avg_take_rate = total_rev / total_vol * 100 if total_vol > 0 else 0
 
     parts = []
-    if pricing.saas_discount_persists:
-        parts.append(
-            f"Persistent {pricing.saas_arr_discount_pct:.0%} SaaS discount, "
-            f"Y2 ARR at ${renewal:,.0f} (+7% escalator)"
-        )
-    elif pricing.saas_arr_discount_pct > 0.25:
+    if pricing.saas_arr_discount_pct > 0.25:
         parts.append(
             f"Y1 SaaS discount of {pricing.saas_arr_discount_pct:.0%} drives win rate, "
             f"then renews at ${renewal:,.0f}/yr"
@@ -287,7 +248,13 @@ def _scenario_explanation(
     if pricing.cc_base_rate < cfg.CC_STANDARD_BASE_RATE:
         parts.append(f"CC promo at {pricing.cc_base_rate:.2%} reverts to {cfg.CC_STANDARD_BASE_RATE:.2%} in Y2")
 
-    parts.append(f"{margin_pct:.0f}% blended margin over 3 years")
+    parts.append(f"{margin_pct:.0f}% blended margin, {avg_take_rate:.1f}% avg take rate")
+
+    processing_rev = sum(
+        yr.cc_revenue + yr.ach_revenue + yr.bank_network_revenue
+        for yr in yearly.values()
+    )
+    processing_pct = processing_rev / total_rev * 100 if total_rev > 0 else 0
     parts.append(f"{processing_pct:.0f}% of revenue from processing")
 
     return " | ".join(parts)
@@ -301,49 +268,45 @@ def run_all_optimizations(
 ) -> dict[str, OptimizationResult]:
     """
     Run all optimization scenarios.
-    Returns {"msrp": ..., "balanced": ..., "aggressive": ..., "saas_passive": ...}.
+    Returns {"msrp": ..., "margin_pct": ..., "take_rate": ..., "ltv": ...}.
     """
     wp = wp_params or {}
 
     msrp = build_msrp_scenario(volumes, saas_arr_list, impl_fee_list, wp)
 
-    balanced = optimize_scenario(
-        name="Balanced",
+    margin_pct = optimize_scenario(
+        name="Margin % Optimized",
+        objective_fn=_objective_margin_pct,
+        volumes=volumes,
+        saas_arr_list=saas_arr_list,
+        impl_fee_list=impl_fee_list,
+        wp_params=wp,
+        explanation_fn=_scenario_explanation,
+    )
+
+    take_rate = optimize_scenario(
+        name="Take Rate Optimized",
+        objective_fn=_objective_take_rate,
+        volumes=volumes,
+        saas_arr_list=saas_arr_list,
+        impl_fee_list=impl_fee_list,
+        wp_params=wp,
+        explanation_fn=_scenario_explanation,
+    )
+
+    ltv = optimize_scenario(
+        name="LTV Optimized",
         objective_fn=_objective_ltv,
         volumes=volumes,
         saas_arr_list=saas_arr_list,
         impl_fee_list=impl_fee_list,
         wp_params=wp,
-        strategy="balanced",
         explanation_fn=_scenario_explanation,
-    )
-
-    aggressive = optimize_scenario(
-        name="Aggressive (Land & Expand)",
-        objective_fn=_objective_win_prob,
-        volumes=volumes,
-        saas_arr_list=saas_arr_list,
-        impl_fee_list=impl_fee_list,
-        wp_params=wp,
-        strategy="aggressive",
-        explanation_fn=_scenario_explanation,
-    )
-
-    saas_passive = optimize_scenario(
-        name="SaaS Passive",
-        objective_fn=_objective_ltv,
-        volumes=volumes,
-        saas_arr_list=saas_arr_list,
-        impl_fee_list=impl_fee_list,
-        wp_params=wp,
-        strategy="saas_passive",
-        explanation_fn=_scenario_explanation,
-        saas_discount_persists=True,
     )
 
     return {
         "msrp": msrp,
-        "balanced": balanced,
-        "aggressive": aggressive,
-        "saas_passive": saas_passive,
+        "margin_pct": margin_pct,
+        "take_rate": take_rate,
+        "ltv": ltv,
     }

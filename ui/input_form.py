@@ -88,7 +88,7 @@ def render_manual_scenario() -> dict | None:
         c1, c2, c3 = st.columns(3)
         with c1:
             saas_disc = st.slider(
-                "SaaS ARR Discount %", 0, 70, 10, key="manual_saas_disc"
+                "SaaS ARR Discount %", 0, 70, 20, key="manual_saas_disc"
             ) / 100
             impl_disc = st.slider(
                 "Impl Fee Discount %", 0, 100, 0, key="manual_impl_disc"
@@ -138,7 +138,7 @@ def render_manual_scenario() -> dict | None:
         with h2:
             hold_bank = st.slider("Bank Hold Days", 1, 5, 2, key="manual_hold_bank")
         with h3:
-            hold_ach = st.slider("ACH Hold Days", 1, 7, 1, key="manual_hold_ach")
+            hold_ach = st.slider("ACH Hold Days", 1, 7, 3, key="manual_hold_ach")
 
         return {
             "saas_arr_discount_pct": saas_disc,

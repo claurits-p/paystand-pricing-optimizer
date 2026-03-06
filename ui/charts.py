@@ -12,11 +12,11 @@ from models.revenue_model import YearlyRevenue
 
 def _scenario_color(name: str) -> str:
     colors = {
-        "MSRP (Sticker Price)": "#dc3545",
-        "Current Pricing (Manual)": "#6c757d",
-        "Balanced": "#1B6AC9",
-        "Aggressive (Land & Expand)": "#28a745",
-        "SaaS Passive": "#fd7e14",
+        "Pre Discount Pricing Today": "#dc3545",
+        "Standard Pricing Today": "#6c757d",
+        "Margin % Optimized": "#1B6AC9",
+        "Take Rate Optimized": "#28a745",
+        "LTV Optimized": "#fd7e14",
     }
     return colors.get(name, "#17a2b8")
 

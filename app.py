@@ -60,9 +60,9 @@ def main():
             unsafe_allow_html=True,
         )
     st.markdown(
-        "Input deal parameters, then run optimization to see **MSRP**, "
-        "**Balanced**, **Aggressive**, and **SaaS Passive** pricing strategies "
-        "with 3-year forecasts."
+        "Input deal parameters, then run optimization to see "
+        "**Margin % Optimized**, **Take Rate Optimized**, and **LTV Optimized** "
+        "pricing strategies with 3-year forecasts."
     )
 
     model_cfg = render_model_config()
@@ -122,7 +122,7 @@ def main():
             manual_yearly = compute_three_year_financials(volumes, manual_pricing)
             manual_wp = win_probability(manual_pricing, **wp_params)
 
-            all_scenarios["Current Pricing (Manual)"] = {
+            all_scenarios["Standard Pricing Today"] = {
                 "yearly": manual_yearly,
                 "win_prob": manual_wp,
             }
@@ -147,7 +147,7 @@ def main():
             render_manual_scenario_card(manual_yearly, manual_pricing, manual_wp)
             st.divider()
 
-        for key in ["balanced", "aggressive", "saas_passive"]:
+        for key in ["margin_pct", "take_rate", "ltv"]:
             render_scenario_card(results[key])
             st.divider()
 
