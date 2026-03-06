@@ -64,6 +64,24 @@ def render_deal_inputs() -> dict:
             format="%.0f",
         )
 
+    st.subheader("Current Performance (Today)")
+    t1, t2, t3 = st.columns(3)
+    with t1:
+        today_win_rate = st.number_input(
+            "Pricing → Win Rate (%)", min_value=0.0, max_value=100.0,
+            value=52.0, step=1.0, format="%.1f",
+        ) / 100
+    with t2:
+        today_take_rate = st.number_input(
+            "Take Rate Today (%)", min_value=0.0, max_value=10.0,
+            value=1.62, step=0.1, format="%.2f",
+        ) / 100
+    with t3:
+        today_margin_pct = st.number_input(
+            "Margin % Today", min_value=0.0, max_value=100.0,
+            value=33.0, step=1.0, format="%.1f",
+        ) / 100
+
     return {
         "company_name": company_name,
         "processing_tier_volume": processing_tier_volume,
@@ -72,6 +90,9 @@ def render_deal_inputs() -> dict:
         "conv_fee_with_paystand": conv_fee_with_paystand,
         "saas_arr_list": saas_arr_list,
         "impl_fee_list": impl_fee_list,
+        "today_win_rate": today_win_rate,
+        "today_take_rate": today_take_rate,
+        "today_margin_pct": today_margin_pct,
     }
 
 
@@ -179,7 +200,7 @@ def render_model_config() -> dict:
     w_impl = st.sidebar.slider("Impl Discount Weight", 0.0, 1.0, w["impl_discount"], 0.05)
     w_hold = st.sidebar.slider("Hold Time Weight", 0.0, 1.0, w["hold_time"], 0.05)
 
-    st.sidebar.subheader("Market Benchmarks")
+    st.sidebar.subheader("Benchmarks")
     bm = cfg.MARKET_BENCHMARKS
     bm_cc = st.sidebar.number_input(
         "Benchmark Blended CC Rate %", value=bm["cc_rate"] * 100, step=0.10,

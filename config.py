@@ -26,7 +26,7 @@ ACH_AVG_TXN_SIZE = 1_700          # $1,700 average transaction size
 HOLD_DAYS_CC_DEFAULT = 2
 HOLD_DAYS_ACH_DEFAULT = 6
 HOLD_DAYS_BANK_DEFAULT = 4
-FLOAT_ANNUAL_RATE = 0.04           # 4% return on float balances
+FLOAT_ANNUAL_RATE = 0.065          # 6.5% return on float balances
 FLOAT_CALENDAR_FACTOR = 7 / 5     # convert business hold days to calendar days
 SAAS_ANNUAL_ESCALATOR = 0.07       # 7% annual increase on standard ARR
 
@@ -50,7 +50,7 @@ ACH_MODES = ["percentage", "capped", "fixed_fee"]
 # ── Win Probability Defaults ──────────────────────────────────
 WIN_PROB_DEFAULTS = {
     "floor": 0.05,        # 5% min win rate
-    "ceiling": 1.0,       # 100% max win rate
+    "ceiling": 0.95,      # 95% max win rate
     "steepness": 9.0,     # sigmoid steepness
     "weights": {
         "cc_rate": 0.35,
@@ -61,13 +61,13 @@ WIN_PROB_DEFAULTS = {
     },
 }
 
-# ── Market Benchmarks (median competitive rates) ──────────────
+# ── Benchmarks (standard pricing baseline) ────────────────────
 MARKET_BENCHMARKS = {
-    "cc_rate": 0.032,              # 3.2% standard blended CC rate (benchmark)
-    "ach_effective_rate": 0.003,   # 0.3% typical competitive ACH effective rate
-    "saas_discount_pct": 0.10,    # typical discount given
-    "impl_discount_pct": 0.25,    # typical impl fee reduction
-    "hold_days_cc": 2,            # typical CC hold
-    "hold_days_ach": 6,           # typical ACH hold
-    "hold_days_bank": 4,          # typical bank network hold
+    "cc_rate": 0.0284,             # 2.84% blended CC (1.99% base + 3.25% AMEX)
+    "ach_effective_rate": 0.0012,  # 0.12% effective ($2.00 / $1,700 avg txn)
+    "saas_discount_pct": 0.22,    # 22% benchmark discount
+    "impl_discount_pct": 0.0,     # no impl discount standard
+    "hold_days_cc": 2,            # standard CC hold
+    "hold_days_ach": 3,           # standard ACH hold
+    "hold_days_bank": 2,          # standard bank hold
 }

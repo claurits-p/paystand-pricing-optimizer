@@ -163,7 +163,7 @@ def render_manual_scenario_card(
     win_prob: float,
 ) -> None:
     """Render the manual / current pricing scenario."""
-    st.subheader("Standard Pricing Today")
+    st.subheader("Standard Pricing Today (Manual)")
 
     _render_metrics_row(yearly, pricing, win_prob)
 

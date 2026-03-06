@@ -47,7 +47,14 @@ from models.win_probability import win_probability
 from optimizer.engine import run_all_optimizations
 from ui.input_form import render_deal_inputs, render_manual_scenario, render_model_config
 from ui.scenario_display import render_scenario_card, render_manual_scenario_card
-from ui.charts import render_comparison_chart, render_yearly_trend_chart
+from ui.charts import (
+    render_executive_table,
+    render_tradeoff_scatter,
+    render_revenue_composition,
+    render_pricing_comparison,
+    render_comparison_chart,
+    render_yearly_trend_chart,
+)
 
 
 def main():
@@ -68,6 +75,12 @@ def main():
     model_cfg = render_model_config()
 
     deal = render_deal_inputs()
+
+    today = {
+        "win_rate": deal["today_win_rate"],
+        "take_rate": deal["today_take_rate"],
+        "margin_pct": deal["today_margin_pct"],
+    }
 
     st.divider()
     manual_pricing_dict = render_manual_scenario()
@@ -103,15 +116,9 @@ def main():
             "benchmarks": model_cfg["benchmarks"],
         }
 
-        with st.spinner("Optimizing pricing scenarios..."):
-            results = run_all_optimizations(
-                volumes=volumes,
-                saas_arr_list=deal["saas_arr_list"],
-                impl_fee_list=deal["impl_fee_list"],
-                wp_params=wp_params,
-            )
-
-        all_scenarios = {}
+        manual_pricing = None
+        manual_yearly = None
+        manual_wp = None
 
         if manual_pricing_dict:
             manual_pricing = PricingScenario(
@@ -122,7 +129,18 @@ def main():
             manual_yearly = compute_three_year_financials(volumes, manual_pricing)
             manual_wp = win_probability(manual_pricing, **wp_params)
 
-            all_scenarios["Standard Pricing Today"] = {
+        with st.spinner("Optimizing pricing scenarios..."):
+            results = run_all_optimizations(
+                volumes=volumes,
+                saas_arr_list=deal["saas_arr_list"],
+                impl_fee_list=deal["impl_fee_list"],
+                wp_params=wp_params,
+            )
+
+        all_scenarios = {}
+
+        if manual_pricing:
+            all_scenarios["Standard Pricing Today (Manual)"] = {
                 "yearly": manual_yearly,
                 "win_prob": manual_wp,
             }
@@ -135,15 +153,31 @@ def main():
 
         st.header(f"Results — {deal['company_name']}")
 
-        render_comparison_chart(all_scenarios)
+        render_executive_table(all_scenarios, today)
+
+        st.divider()
+
+        render_tradeoff_scatter(all_scenarios, today)
+
+        st.divider()
+
+        render_comparison_chart(all_scenarios, today)
         render_yearly_trend_chart(all_scenarios)
+
+        st.divider()
+
+        render_revenue_composition(all_scenarios)
+
+        st.divider()
+
+        render_pricing_comparison(results, manual_pricing)
 
         st.divider()
 
         render_scenario_card(results["msrp"])
         st.divider()
 
-        if manual_pricing_dict:
+        if manual_pricing:
             render_manual_scenario_card(manual_yearly, manual_pricing, manual_wp)
             st.divider()
 

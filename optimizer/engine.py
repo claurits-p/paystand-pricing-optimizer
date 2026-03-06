@@ -204,9 +204,9 @@ def build_msrp_scenario(
         ach_pct_rate=cfg.ACH_STANDARD_RATE,
         ach_cap=10.0,
         ach_fixed_fee=2.50,
-        hold_days_cc=cfg.HOLD_DAYS_CC_DEFAULT,
-        hold_days_ach=cfg.HOLD_DAYS_ACH_DEFAULT,
-        hold_days_bank=cfg.HOLD_DAYS_BANK_DEFAULT,
+        hold_days_cc=2,
+        hold_days_ach=2,
+        hold_days_bank=1,
         saas_arr_list=saas_arr_list,
         impl_fee_list=impl_fee_list,
     )
