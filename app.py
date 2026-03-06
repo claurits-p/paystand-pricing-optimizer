@@ -145,7 +145,9 @@ def main():
                 "win_prob": manual_wp,
             }
 
-        for key, result in results.items():
+        scenario_order = ["msrp", "ltv", "saas_passive", "margin_pct", "take_rate"]
+        for key in scenario_order:
+            result = results[key]
             all_scenarios[result.name] = {
                 "yearly": result.yearly,
                 "win_prob": result.win_prob,
@@ -177,11 +179,17 @@ def main():
         render_scenario_card(results["msrp"])
         st.divider()
 
+        render_scenario_card(results["ltv"])
+        st.divider()
+
+        render_scenario_card(results["saas_passive"])
+        st.divider()
+
         if manual_pricing:
             render_manual_scenario_card(manual_yearly, manual_pricing, manual_wp)
             st.divider()
 
-        for key in ["margin_pct", "take_rate", "ltv"]:
+        for key in ["margin_pct", "take_rate"]:
             render_scenario_card(results[key])
             st.divider()
 

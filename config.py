@@ -55,7 +55,7 @@ WIN_PROB_DEFAULTS = {
     "weights": {
         "cc_rate": 0.35,
         "saas_discount": 0.50,
-        "ach_rate": 0.20,
+        "ach_rate": 0.50,
         "impl_discount": 0.05,
         "hold_time": 0.05,
     },

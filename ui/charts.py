@@ -18,6 +18,7 @@ def _scenario_color(name: str) -> str:
         "Margin % Optimized": "#1B6AC9",
         "Take Rate Optimized": "#28a745",
         "LTV Optimized": "#fd7e14",
+        "SaaS Passive": "#8b5cf6",
     }
     return colors.get(name, "#17a2b8")
 

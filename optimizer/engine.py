@@ -44,6 +44,15 @@ def _build_pricing_from_vector(
     saas_arr_list: float,
     impl_fee_list: float,
 ) -> PricingScenario:
+    hold_cc = int(round(x[7]))
+    hold_ach = int(round(x[8]))
+    hold_bank = int(round(x[9]))
+
+    if ach_mode == "percentage":
+        hold_cc = 2
+        hold_ach = 2
+        hold_bank = 1
+
     return PricingScenario(
         saas_arr_discount_pct=float(x[0]),
         impl_fee_discount_pct=float(x[1]),
@@ -53,17 +62,32 @@ def _build_pricing_from_vector(
         ach_pct_rate=float(x[4]),
         ach_cap=float(x[5]),
         ach_fixed_fee=float(x[6]),
-        hold_days_cc=int(round(x[7])),
-        hold_days_ach=int(round(x[8])),
-        hold_days_bank=int(round(x[9])),
+        hold_days_cc=hold_cc,
+        hold_days_ach=hold_ach,
+        hold_days_bank=hold_bank,
         saas_arr_list=saas_arr_list,
         impl_fee_list=impl_fee_list,
     )
 
 
-def _get_bounds() -> list[tuple[float, float]]:
-    """Full lever bounds — no strategy-specific constraints."""
+def _get_bounds(strategy: str = "default") -> list[tuple[float, float]]:
+    """Lever bounds, optionally constrained by strategy."""
     lb = cfg.LEVER_BOUNDS
+
+    if strategy == "saas_passive":
+        return [
+            (0.50, 0.70),                                          # SaaS discount: 50-70%
+            (lb["impl_fee_discount_pct"]["min"], lb["impl_fee_discount_pct"]["max"]),
+            (lb["cc_base_rate"]["min"], lb["cc_base_rate"]["max"]),
+            (lb["cc_amex_rate"]["min"], lb["cc_amex_rate"]["max"]),
+            (lb["ach_pct_rate"]["min"], lb["ach_pct_rate"]["max"]),
+            (lb["ach_cap"]["min"], lb["ach_cap"]["max"]),
+            (lb["ach_fixed_fee"]["min"], lb["ach_fixed_fee"]["max"]),
+            (1, 2),                                                 # CC hold: up to 2
+            (1, 10),                                                # ACH hold: up to 10
+            (1, 10),                                                # Bank hold: up to 10
+        ]
+
     return [
         (lb["saas_arr_discount_pct"]["min"], lb["saas_arr_discount_pct"]["max"]),
         (lb["impl_fee_discount_pct"]["min"], lb["impl_fee_discount_pct"]["max"]),
@@ -127,8 +151,9 @@ def _run_single_optimization(
     saas_arr_list: float,
     impl_fee_list: float,
     wp_params: dict,
+    strategy: str = "default",
 ) -> tuple[float, np.ndarray]:
-    bounds = _get_bounds()
+    bounds = _get_bounds(strategy)
     result = differential_evolution(
         objective_fn,
         bounds=bounds,
@@ -151,15 +176,19 @@ def optimize_scenario(
     impl_fee_list: float,
     wp_params: dict,
     explanation_fn: Callable | None = None,
+    strategy: str = "default",
+    ach_modes: list[str] | None = None,
+    saas_discount_persists: bool = False,
 ) -> OptimizationResult:
     best_obj = float("inf")
     best_x = None
     best_mode = "percentage"
 
-    for mode in cfg.ACH_MODES:
+    for mode in (ach_modes or cfg.ACH_MODES):
         obj, x = _run_single_optimization(
             objective_fn, mode, volumes,
             saas_arr_list, impl_fee_list, wp_params,
+            strategy=strategy,
         )
         if obj < best_obj:
             best_obj = obj
@@ -169,6 +198,8 @@ def optimize_scenario(
     pricing = _build_pricing_from_vector(
         best_x, best_mode, saas_arr_list, impl_fee_list
     )
+    if saas_discount_persists:
+        pricing.saas_discount_persists = True
     yearly = compute_three_year_financials(volumes, pricing)
     wp = win_probability(pricing, **wp_params)
 
@@ -304,9 +335,23 @@ def run_all_optimizations(
         explanation_fn=_scenario_explanation,
     )
 
+    saas_passive = optimize_scenario(
+        name="SaaS Passive",
+        objective_fn=_objective_ltv,
+        volumes=volumes,
+        saas_arr_list=saas_arr_list,
+        impl_fee_list=impl_fee_list,
+        wp_params=wp,
+        explanation_fn=_scenario_explanation,
+        strategy="saas_passive",
+        ach_modes=["fixed_fee"],
+        saas_discount_persists=True,
+    )
+
     return {
         "msrp": msrp,
         "margin_pct": margin_pct,
         "take_rate": take_rate,
         "ltv": ltv,
+        "saas_passive": saas_passive,
     }
