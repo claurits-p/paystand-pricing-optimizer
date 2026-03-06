@@ -79,7 +79,7 @@ def render_deal_inputs() -> dict:
     with t3:
         today_margin_pct = st.number_input(
             "Margin % Today", min_value=0.0, max_value=100.0,
-            value=33.0, step=1.0, format="%.1f",
+            value=44.0, step=1.0, format="%.1f",
         ) / 100
 
     return {
