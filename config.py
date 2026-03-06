@@ -49,9 +49,10 @@ ACH_MODES = ["percentage", "capped", "fixed_fee"]
 
 # ── Win Probability Defaults ──────────────────────────────────
 WIN_PROB_DEFAULTS = {
-    "floor": 0.05,        # 5% min win rate
-    "ceiling": 0.95,      # 95% max win rate
+    "floor": 0.20,        # 20% min win rate
+    "ceiling": 0.80,      # 80% max win rate
     "steepness": 9.0,     # sigmoid steepness
+    "max_lever_impact": 0.10,  # no single lever can move P(win) more than 10%
     "weights": {
         "cc_rate": 0.35,
         "saas_discount": 0.50,

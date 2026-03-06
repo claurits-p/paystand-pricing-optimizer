@@ -106,13 +106,15 @@ def composite_score(
     pricing: PricingScenario,
     benchmarks: dict | None = None,
     weights: dict | None = None,
+    lever_cap: float | None = None,
 ) -> float:
     """
     Compute a single competitiveness score from pricing levers.
     Positive = more competitive than market, negative = more expensive.
 
     Each lever is range-normalized to [-1, +1] before weighting,
-    so weights directly control each lever's share of influence.
+    then each lever's contribution is clamped to ±lever_cap so no
+    single concession can dominate the win probability.
     """
     bm = benchmarks or cfg.MARKET_BENCHMARKS
     w = weights or cfg.WIN_PROB_DEFAULTS["weights"]
@@ -132,6 +134,8 @@ def composite_score(
     )
     hold_weighted = w.get("hold_time", 0) * hold_raw
     hold_clamped = max(-MAX_HOLD_IMPACT, min(MAX_HOLD_IMPACT, hold_weighted))
+    if lever_cap is not None:
+        hold_clamped = max(-lever_cap, min(lever_cap, hold_clamped))
 
     scores = {
         "cc_rate": _range_norm_lower(
@@ -151,8 +155,14 @@ def composite_score(
         ),
     }
 
-    other_score = sum(w.get(k, 0) * v for k, v in scores.items())
-    return other_score + hold_clamped
+    total = 0.0
+    for k, v in scores.items():
+        contrib = w.get(k, 0) * v
+        if lever_cap is not None:
+            contrib = max(-lever_cap, min(lever_cap, contrib))
+        total += contrib
+
+    return total + hold_clamped
 
 
 def win_probability(
@@ -162,17 +172,29 @@ def win_probability(
     steepness: float | None = None,
     benchmarks: dict | None = None,
     weights: dict | None = None,
+    max_lever_impact: float | None = None,
 ) -> float:
     """
     P(win) = floor + (ceiling - floor) * sigmoid(steepness * composite_score)
 
+    Each lever's composite contribution is capped so that no single
+    concession can shift P(win) by more than `max_lever_impact` (default 10%).
     Returns a value in [floor, ceiling].
     """
     f = floor if floor is not None else cfg.WIN_PROB_DEFAULTS["floor"]
     c = ceiling if ceiling is not None else cfg.WIN_PROB_DEFAULTS["ceiling"]
     s = steepness if steepness is not None else cfg.WIN_PROB_DEFAULTS["steepness"]
+    mli = max_lever_impact if max_lever_impact is not None else cfg.WIN_PROB_DEFAULTS.get("max_lever_impact", 0.10)
 
-    score = composite_score(pricing, benchmarks, weights)
+    pwin_range = c - f
+    if pwin_range > 0 and s > 0:
+        target_sigmoid = 0.5 + mli / pwin_range
+        target_sigmoid = min(target_sigmoid, 0.999)
+        lever_cap = math.log(target_sigmoid / (1 - target_sigmoid)) / s
+    else:
+        lever_cap = None
+
+    score = composite_score(pricing, benchmarks, weights, lever_cap=lever_cap)
     sigmoid = 1.0 / (1.0 + math.exp(-s * score))
 
     return f + (c - f) * sigmoid
