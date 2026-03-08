@@ -2,13 +2,15 @@
 Plotly charts for scenario comparison and 3-year forecasts.
 """
 from __future__ import annotations
+import copy
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 from optimizer.engine import OptimizationResult
-from models.revenue_model import YearlyRevenue, PricingScenario
+from models.revenue_model import YearlyRevenue, PricingScenario, compute_three_year_financials
+from models.win_probability import solve_multi_lever_for_target_win_rate, win_probability, win_probability_uncapped
 
 
 def _scenario_color(name: str) -> str:
@@ -439,3 +441,97 @@ def render_yearly_trend_chart(
         st.plotly_chart(fig_rev, use_container_width=True)
     with c2:
         st.plotly_chart(fig_margin, use_container_width=True)
+
+
+# ── Win Rate Boost Summary ────────────────────────────────────────────
+
+def render_boost_summary_chart(
+    scenarios: dict[str, dict],
+    boost_pct: float,
+    volumes: dict,
+    wp_params: dict,
+    pricing_map: dict[str, PricingScenario],
+) -> None:
+    """Bar chart showing the SaaS discount needed and EV gain per scenario."""
+    if boost_pct <= 0:
+        return
+
+    st.subheader(f"Win Rate Boost Summary (+{boost_pct:.0%})")
+
+    labels, saas_orig, saas_needed, ev_gains = [], [], [], []
+
+    for label, data in scenarios.items():
+        pricing = pricing_map.get(label)
+        if pricing is None:
+            continue
+        yearly = data["yearly"]
+        wp = data["win_prob"]
+        target_wp = min(wp + boost_pct, wp_params.get("ceiling", 0.80))
+        if target_wp - wp < 0.005:
+            continue
+
+        result = solve_multi_lever_for_target_win_rate(pricing, target_wp, wp_params)
+        if result is None:
+            continue
+
+        boosted = result["pricing"]
+        boosted_yearly = compute_three_year_financials(volumes, boosted)
+        boosted_wp = win_probability(boosted, **wp_params)
+
+        orig_rev = sum(yr.total_revenue for yr in yearly.values())
+        boost_rev = sum(yr.total_revenue for yr in boosted_yearly.values())
+
+        labels.append(label)
+        saas_orig.append(pricing.saas_arr_discount_pct * 100)
+        saas_needed.append(boosted.saas_arr_discount_pct * 100)
+        ev_gains.append(boosted_wp * boost_rev - wp * orig_rev)
+
+    if not labels:
+        return
+
+    c1, c2 = st.columns(2)
+
+    with c1:
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            name="Current SaaS Discount",
+            x=labels, y=saas_orig,
+            marker_color=[_scenario_color(l) for l in labels],
+            opacity=0.4,
+            text=[f"{v:.0f}%" for v in saas_orig],
+            textposition="auto",
+            textfont=dict(size=11),
+        ))
+        fig.add_trace(go.Bar(
+            name=f"Required for +{boost_pct:.0%} Win Rate",
+            x=labels, y=saas_needed,
+            marker_color=[_scenario_color(l) for l in labels],
+            opacity=0.9,
+            text=[f"{v:.0f}%" for v in saas_needed],
+            textposition="auto",
+            textfont=dict(color="white", size=11),
+        ))
+        fig.update_layout(
+            title="SaaS Discount: Current vs Required",
+            yaxis_title="SaaS Discount %",
+            barmode="group", template="plotly_white",
+            height=400, legend=dict(orientation="h", y=-0.15),
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+    with c2:
+        colors = [("#16a34a" if v >= 0 else "#dc2626") for v in ev_gains]
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            x=labels, y=ev_gains,
+            marker_color=colors,
+            text=[f"${v:+,.0f}" for v in ev_gains],
+            textposition="auto",
+            textfont=dict(color="white", size=11),
+        ))
+        fig.update_layout(
+            title="Expected Value Gain (P(win) × 3-Year Revenue)",
+            yaxis_title="EV Gain ($)",
+            template="plotly_white", height=400,
+        )
+        st.plotly_chart(fig, use_container_width=True)

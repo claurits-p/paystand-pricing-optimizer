@@ -46,7 +46,7 @@ from models.revenue_model import (
 from models.win_probability import win_probability
 from optimizer.engine import run_all_optimizations
 from ui.input_form import render_deal_inputs, render_manual_scenario, render_model_config
-from ui.scenario_display import render_scenario_card, render_manual_scenario_card
+from ui.scenario_display import render_scenario_card, render_manual_scenario_card, render_boost_analysis
 from ui.charts import (
     render_executive_table,
     render_tradeoff_scatter,
@@ -54,6 +54,7 @@ from ui.charts import (
     render_pricing_comparison,
     render_comparison_chart,
     render_yearly_trend_chart,
+    render_boost_summary_chart,
 )
 
 
@@ -172,25 +173,60 @@ def main():
 
         st.divider()
 
+        boost = deal["win_rate_boost"]
+
+        pricing_map = {}
+        for key in scenario_order:
+            result = results[key]
+            pricing_map[result.name] = result.pricing
+        if manual_pricing:
+            pricing_map["Standard Pricing Today (Manual)"] = manual_pricing
+
+        render_boost_summary_chart(
+            all_scenarios, boost, volumes, wp_params, pricing_map,
+        )
+
+        st.divider()
+
         render_pricing_comparison(results, manual_pricing)
 
         st.divider()
 
         render_scenario_card(results["msrp"])
+        render_boost_analysis(
+            results["msrp"].pricing, results["msrp"].yearly,
+            results["msrp"].win_prob, boost, volumes, wp_params,
+        )
         st.divider()
 
         render_scenario_card(results["ltv"])
+        render_boost_analysis(
+            results["ltv"].pricing, results["ltv"].yearly,
+            results["ltv"].win_prob, boost, volumes, wp_params,
+        )
         st.divider()
 
         render_scenario_card(results["saas_passive"])
+        render_boost_analysis(
+            results["saas_passive"].pricing, results["saas_passive"].yearly,
+            results["saas_passive"].win_prob, boost, volumes, wp_params,
+        )
         st.divider()
 
         if manual_pricing:
             render_manual_scenario_card(manual_yearly, manual_pricing, manual_wp)
+            render_boost_analysis(
+                manual_pricing, manual_yearly,
+                manual_wp, boost, volumes, wp_params,
+            )
             st.divider()
 
         for key in ["margin_pct", "take_rate"]:
             render_scenario_card(results[key])
+            render_boost_analysis(
+                results[key].pricing, results[key].yearly,
+                results[key].win_prob, boost, volumes, wp_params,
+            )
             st.divider()
 
         st.subheader("Export")

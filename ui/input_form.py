@@ -82,6 +82,15 @@ def render_deal_inputs() -> dict:
             value=44.0, step=1.0, format="%.1f",
         ) / 100
 
+    st.subheader("Win Rate Boost Analysis")
+    win_rate_boost = st.slider(
+        "Target Win Rate Increase",
+        min_value=0, max_value=15, value=5, step=1,
+        format="%d%%",
+        help="How many percentage points of win rate increase to analyze. "
+             "The model will compute the SaaS discount needed to achieve this boost for each scenario.",
+    ) / 100
+
     return {
         "company_name": company_name,
         "processing_tier_volume": processing_tier_volume,
@@ -93,6 +102,7 @@ def render_deal_inputs() -> dict:
         "today_win_rate": today_win_rate,
         "today_take_rate": today_take_rate,
         "today_margin_pct": today_margin_pct,
+        "win_rate_boost": win_rate_boost,
     }
 
 

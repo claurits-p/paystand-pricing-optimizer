@@ -52,11 +52,12 @@ WIN_PROB_DEFAULTS = {
     "floor": 0.20,        # 20% min win rate
     "ceiling": 0.80,      # 80% max win rate
     "steepness": 9.0,     # sigmoid steepness
-    "max_lever_impact": 0.10,  # no single lever can move P(win) more than 10%
+    "max_lever_impact": 0.17,  # no single lever can move P(win) more than 17%
+    "max_saas_impact": 0.22,   # SaaS discount can move P(win) up to 22%
     "weights": {
-        "cc_rate": 0.35,
-        "saas_discount": 0.50,
-        "ach_rate": 0.50,
+        "cc_rate": 0.30,
+        "saas_discount": 0.40,
+        "ach_rate": 0.40,
         "impl_discount": 0.05,
         "hold_time": 0.05,
     },
