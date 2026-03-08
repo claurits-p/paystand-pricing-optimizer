@@ -321,8 +321,8 @@ def render_boost_analysis(
         boost_ev = boosted_wp * boost_rev
         st.markdown(
             f"**Expected Value:** "
-            f"Original: {win_prob:.0%} \\u00d7 \\${orig_rev:,.0f} = **\\${orig_ev:,.0f}** · "
-            f"Boosted: {boosted_wp:.0%} \\u00d7 \\${boost_rev:,.0f} = **\\${boost_ev:,.0f}** · "
+            f"Original: {win_prob:.0%} x \\${orig_rev:,.0f} = **\\${orig_ev:,.0f}** · "
+            f"Boosted: {boosted_wp:.0%} x \\${boost_rev:,.0f} = **\\${boost_ev:,.0f}** · "
             f"EV Gain: **\\${boost_ev - orig_ev:+,.0f}**"
         )
 
